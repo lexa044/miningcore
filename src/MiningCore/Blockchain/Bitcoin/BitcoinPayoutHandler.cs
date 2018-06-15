@@ -49,7 +49,7 @@ namespace MiningCore.Blockchain.Bitcoin
         CoinType.LTC, CoinType.DOGE, CoinType.DGB, CoinType.VIA,
         CoinType.GRS, CoinType.MONA, CoinType.VTC, CoinType.BTG,
         CoinType.GLT, CoinType.STAK, CoinType.MOON, CoinType.XVG,
-        CoinType.PAK, CoinType.CANN, CoinType.RVN, CoinType.PGN)]
+        CoinType.PAK, CoinType.CANN, CoinType.RVN, CoinType.PGN, CoinType.BTP)]
     public class BitcoinPayoutHandler : PayoutHandlerBase,
         IPayoutHandler
     {
@@ -236,36 +236,97 @@ namespace MiningCore.Blockchain.Bitcoin
             logger.Info(() => $"[{LogCategory}] Paying out {FormatAmount(balances.Sum(x => x.Amount))} to {balances.Length} addresses");
 
             object[] args;
-
-            if (extraPoolPaymentProcessingConfig?.MinersPayTxFees == true)
-            {
-                var comment = (poolConfig.PoolName ?? clusterConfig.ClusterName ?? "MiningCore").Trim() + " Payment";
-                var subtractFeesFrom = amounts.Keys.ToArray();
-
-                args = new object[]
-                {
-                    string.Empty,           // default account
-                    amounts,                // addresses and associated amounts
-                    1,                      // only spend funds covered by this many confirmations
-                    comment,                // tx comment
-                    subtractFeesFrom        // distribute transaction fee equally over all recipients
-                };
-            }
-
-            else
+            //Remarks: unfortunately 0.15 & 0.16 seem to be broken, sendmany not working anymore, instead using sendtoaddress
+            var didUnlockWallet = false;
+            foreach (string key in amounts.Keys)
             {
                 args = new object[]
                 {
-                    string.Empty,           // default account
-                    amounts,                // addresses and associated amounts
+                    key,            // address
+                    amounts[key],   // amount
+                    "reward",       // comment
+                    "pool payment", // comment_to
+                    true            // subtractfeefromamount  
                 };
+                // send command
+                tryTransfer:
+                var result = await daemon.ExecuteCmdSingleAsync<string>(BitcoinCommands.SendToAddress, args, new JsonSerializerSettings());
+                Balance[] newBalances = balances.Where(b => b.Address == key).ToArray();
+                if (result.Error == null)
+                {
+                    if (didUnlockWallet)
+                    {
+                        // lock wallet
+                        logger.Info(() => $"[{LogCategory}] Locking wallet");
+                        await daemon.ExecuteCmdSingleAsync<JToken>(BitcoinCommands.WalletLock);
+                    }
+
+                    // check result
+                    var txId = result.Response;
+
+                    if (string.IsNullOrEmpty(txId))
+                        logger.Error(() => $"[{LogCategory}] {BitcoinCommands.SendToAddress} did not return a transaction id!");
+                    else
+                        logger.Info(() => $"[{LogCategory}] Payout transaction id: {txId}");
+
+                    PersistPayments(newBalances, txId);
+
+                    NotifyPayoutSuccess(poolConfig.Id, newBalances, new[] { txId }, null);
+                }
+
+                else
+                {
+                    if (result.Error.Code == (int)BitcoinRPCErrorCode.RPC_WALLET_UNLOCK_NEEDED && !didUnlockWallet)
+                    {
+                        if (!string.IsNullOrEmpty(extraPoolPaymentProcessingConfig?.WalletPassword))
+                        {
+                            logger.Info(() => $"[{LogCategory}] Unlocking wallet");
+
+                            var unlockResult = await daemon.ExecuteCmdSingleAsync<JToken>(BitcoinCommands.WalletPassphrase, new[]
+                            {
+                            (object) extraPoolPaymentProcessingConfig.WalletPassword,
+                            (object) 5  // unlock for N seconds
+                        });
+
+                            if (unlockResult.Error == null)
+                            {
+                                didUnlockWallet = true;
+                                goto tryTransfer;
+                            }
+
+                            else
+                                logger.Error(() => $"[{LogCategory}] {BitcoinCommands.WalletPassphrase} returned error: {result.Error.Message} code {result.Error.Code}");
+                        }
+
+                        else
+                            logger.Error(() => $"[{LogCategory}] Wallet is locked but walletPassword was not configured. Unable to send funds.");
+                    }
+
+                    else
+                    {
+                        logger.Error(() => $"[{LogCategory}] {BitcoinCommands.SendToAddress} returned error: {result.Error.Message} code {result.Error.Code}");
+
+                        NotifyPayoutFailure(poolConfig.Id, newBalances, $"{BitcoinCommands.SendMany} returned error: {result.Error.Message} code {result.Error.Code}", null);
+                    }
+                }
             }
+        }
+
+        private async Task PayoutToAddressAsync(string address, decimal amount, Balance[] balances)
+        {
+            object[] args = new object[]
+                {
+                    address,       // address
+                    amount,        // amount
+                    "reward",      // comment
+                    "pool payment",// comment_to
+                    true           // subtractfeefromamount  
+                };
 
             var didUnlockWallet = false;
-
             // send command
             tryTransfer:
-            var result = await daemon.ExecuteCmdSingleAsync<string>(BitcoinCommands.SendMany, args, new JsonSerializerSettings());
+            var result = await daemon.ExecuteCmdSingleAsync<string>(BitcoinCommands.SendToAddress, args, new JsonSerializerSettings());
 
             if (result.Error == null)
             {
@@ -291,13 +352,13 @@ namespace MiningCore.Blockchain.Bitcoin
 
             else
             {
-                if (result.Error.Code == (int) BitcoinRPCErrorCode.RPC_WALLET_UNLOCK_NEEDED && !didUnlockWallet)
+                if (result.Error.Code == (int)BitcoinRPCErrorCode.RPC_WALLET_UNLOCK_NEEDED && !didUnlockWallet)
                 {
                     if (!string.IsNullOrEmpty(extraPoolPaymentProcessingConfig?.WalletPassword))
                     {
                         logger.Info(() => $"[{LogCategory}] Unlocking wallet");
 
-                        var unlockResult = await daemon.ExecuteCmdSingleAsync<JToken>(BitcoinCommands.WalletPassphrase, new []
+                        var unlockResult = await daemon.ExecuteCmdSingleAsync<JToken>(BitcoinCommands.WalletPassphrase, new[]
                         {
                             (object) extraPoolPaymentProcessingConfig.WalletPassword,
                             (object) 5  // unlock for N seconds

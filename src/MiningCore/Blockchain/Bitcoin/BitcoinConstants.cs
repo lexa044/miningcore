@@ -162,6 +162,7 @@ namespace MiningCore.Blockchain.Bitcoin
             {CoinType.ETN, "etnkQJwBCjmR1MfkU8D355ZWxxLMhs8miPrtKHWN4U3uUowq9ugeKccVBoEG3n13n74us5AkT8tEoTog46w4HBgn8sMuBRhm9h"},
             {CoinType.RVN, "RQPJF65UoodQ2aZUkfnXoeX6gib3GNwm9u"},
             {CoinType.PGN, "PRm3ThUGfmU157NwcKzKBqWbgA2DPuFje1"},
+            {CoinType.BTP, "BNsRHHydu8m3ND34Bc6RKydKwqzixqupwL"},
         };
     }
 
@@ -180,6 +181,7 @@ namespace MiningCore.Blockchain.Bitcoin
         public const string GetBlock = "getblock";
         public const string GetTransaction = "gettransaction";
         public const string SendMany = "sendmany";
+        public const string SendToAddress = "sendtoaddress";
         public const string WalletPassphrase = "walletpassphrase";
         public const string WalletLock = "walletlock";
 
