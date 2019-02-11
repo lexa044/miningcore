@@ -63,7 +63,7 @@ namespace MiningCore.Configuration
         CANN, // CannabisCoin
         RVN,  // Ravencoin
         PGN,  // Pigeoncoin 
-        BTP,  // Betchip
+        BTCHP,  // Betchip
     }
 
     public class CoinConfig
