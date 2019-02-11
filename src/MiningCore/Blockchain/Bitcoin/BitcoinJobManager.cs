@@ -660,7 +660,7 @@ namespace MiningCore.Blockchain.Bitcoin
         {
             var commands = new[]
             {
-                new DaemonCmd(BitcoinCommands.ValidateAddress, new[] { poolConfig.Address }),
+                new DaemonCmd(BitcoinCommands.GetAddressInfo, new[] { poolConfig.Address }),
                 new DaemonCmd(BitcoinCommands.SubmitBlock),
                 new DaemonCmd(!hasLegacyDaemon ? BitcoinCommands.GetBlockchainInfo : BitcoinCommands.GetInfo),
                 new DaemonCmd(BitcoinCommands.GetDifficulty),
@@ -685,9 +685,9 @@ namespace MiningCore.Blockchain.Bitcoin
             var daemonInfoResponse = hasLegacyDaemon ? results[2].Response.ToObject<DaemonInfo>() : null;
             var difficultyResponse = results[3].Response.ToObject<JToken>();
 
-            // ensure pool owns wallet
-            if (!validateAddressResponse.IsValid)
-                logger.ThrowLogPoolStartupException($"Daemon reports pool-address '{poolConfig.Address}' as invalid", LogCat);
+            // ensure pool owns wallet / Deprecated 
+            //if (!validateAddressResponse.IsValid)
+            //    logger.ThrowLogPoolStartupException($"Daemon reports pool-address '{poolConfig.Address}' as invalid", LogCat);
 
             if (clusterConfig.PaymentProcessing?.Enabled == true && !validateAddressResponse.IsMine)
                 logger.ThrowLogPoolStartupException($"Daemon does not own pool-address '{poolConfig.Address}'", LogCat);

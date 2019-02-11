@@ -173,7 +173,8 @@ namespace MiningCore.Blockchain.Bitcoin
         public const string GetNetworkInfo = "getnetworkinfo";
         public const string GetMiningInfo = "getmininginfo";
         public const string GetPeerInfo = "getpeerinfo";
-        public const string ValidateAddress = "validateaddress";
+        public const string ValidateAddress = "validateaddress";//deprecated
+        public const string GetAddressInfo = "getaddressinfo";//deprecated
         public const string GetBlockTemplate = "getblocktemplate";
         public const string GetBlockSubsidy = "getblocksubsidy";
         public const string SubmitBlock = "submitblock";
